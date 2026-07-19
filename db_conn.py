@@ -1,8 +1,9 @@
-import os
-import pyodbc
 import pandas as pd
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+from config import DRIVER, VAULT_URL
 from sqlalchemy import create_engine
-from dotenv import load_dotenv
+
 
 
 
@@ -14,11 +15,20 @@ class connection_object:
     connection = None;
     cursor = None;
     column_names = None;
+    SERVER = None;
+    DB = None;
+    USER = None;
+    PASS = None;
 
 
 
     def __init__(self):
-        load_dotenv()
+        credential = DefaultAzureCredential()
+        client = SecretClient(vault_url=VAULT_URL, credential=credential)
+        self.SERVER = client.get_secret("db-server").value
+        self.DB = client.get_secret("db-name").value
+        self.USER = client.get_secret("db-username").value
+        self.PASS = client.get_secret("db-password").value
         self.connect()
 
     def connect(self):
@@ -26,7 +36,8 @@ class connection_object:
         Establish a connection to the Azure DB Server.
         """ 
         try:
-            connection_string = f"mssql+pyodbc://{os.getenv('UID')}:{os.getenv('DB_PWD')}@{os.getenv('SERVER')}/{os.getenv('DATABASE')}?driver={os.getenv('DRIVER')}"
+            
+            connection_string = f"mssql+pyodbc://{self.USER}:{self.PASS}@{self.SERVER}/{self.DB}?driver={DRIVER}"
             #Engine for bulk inserts/updates. Connection for dynamic single inserts
             self.engine = create_engine(connection_string)
             self.connection = self.engine.raw_connection()
@@ -83,7 +94,7 @@ class connection_object:
         if not self.column_names[table_name]['columns']:
             self.get_column_names(table_name, schema_name)
 
-        ## Filter the DataFrame to only include valid columns
+        ## Filter the DataFrame to only include valid columns and return it
         return df[[col for col in df.columns if col in self.column_names[table_name]['columns']]]
 
 
@@ -126,6 +137,8 @@ class connection_object:
             return str(e)
 
         pass  
+
+test = connection_object()
 
     
 
