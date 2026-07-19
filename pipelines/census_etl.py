@@ -1,7 +1,7 @@
-from db_conn import connection_object
-from ETL_logger import ETL_logger
+from db_conn import ConnectionObject
+from pipeline_logger import PipelineLogger
 
-class ETL_census:
+class CensusETL:
     """
     A class to manage the ETL process for Census data.
     """
@@ -9,8 +9,8 @@ class ETL_census:
     logger = None
     
     def __init__(self):
-        self.connection = connection_object()
-        self.logger = ETL_logger(self.connection)
+        self.connection = ConnectionObject()
+        self.logger = PipelineLogger(self.connection)
         pass
   
     ### PARAMETERS PASSED ###

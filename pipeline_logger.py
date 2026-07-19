@@ -1,6 +1,6 @@
 
 
-class ETL_logger:
+class PipelineLogger:
     """
     A class to manage logging for the ETL process.
     """
@@ -22,3 +22,4 @@ class ETL_logger:
 
     def update_ETL_log(data):
         pass 
+

@@ -5,9 +5,7 @@ from config import DRIVER, VAULT_URL
 from sqlalchemy import create_engine
 
 
-
-
-class connection_object:
+class ConnectionObject:
     """
     A dynamic class to manage the connection to the Azure DB Server.
     """
@@ -19,7 +17,6 @@ class connection_object:
     DB = None;
     USER = None;
     PASS = None;
-
 
 
     def __init__(self):
@@ -56,6 +53,8 @@ class connection_object:
             self.cursor.close()
         if self.connection:
             self.connection.close()
+        if self.engine:
+            self.engine.dispose()
     
     
     
