@@ -33,10 +33,10 @@ class DatabaseClient:
             self.engine = create_engine(connection_string)
             self.connection = self.engine.raw_connection()
             self.cursor = self.connection.cursor()
-            print("SQL Server connection successful!")
+            return {'success': True, 'data': None}
         except Exception as e:
             print(f"SQL Server connection FAILED: {e}")
-            return str(e)
+            return {'success': False, 'error': str(e)}
     
     def close(self):
         """
@@ -87,11 +87,10 @@ class DatabaseClient:
             self.cursor.execute(query, values)
             self.connection.commit()
             self.cursor.execute("SELECT SCOPE_IDENTITY()")
-            return self.cursor.fetchone()[0]
+            return {'success': True, 'data': self.cursor.fetchone()[0]}
         except Exception as e:
-            print(f"Failed to insert row: {e}")
             self.connection.rollback()
-            return f"Failed insert into {table_name}: " + str(e)
+            return {'success': False, 'error': f"Failed insert into {table_name}: " + str(e)}
 
     def bulk_insert(self, data, table_name, schema_name = "dbo"):
         """
@@ -107,10 +106,10 @@ class DatabaseClient:
         try:
             df = self._validate_columns(table_name, schema_name, df)
             df.to_sql(table_name, self.engine, schema=schema_name, if_exists='append', index=False)
-            return True
+            return {'success': True, 'data': None}
         except Exception as e:
-            print(f"Failed to insert data: {e}")
-            return str(e)
+            return {'success': False, 'error': f"Failed insert into {table_name}: " + str(e)}
+            
 
     def single_update(self, data, table_name, primary_key_value, schema_name = "dbo"):
         """
@@ -135,10 +134,9 @@ class DatabaseClient:
             query = f"UPDATE {schema_name}.{table_name} SET {columns} WHERE {primary_key} = ?"
             self.cursor.execute(query, all_values)
             self.connection.commit()
-            return True
+            return {'success': True, 'data': None}
         except Exception as e:
-            print(f"Failed to updated row: {e}")
-            return str(e)
+            return {'success': False, 'error': f"Failed to update row in {table_name}: " + str(e)}
         
 
 
@@ -162,10 +160,9 @@ class DatabaseClient:
             query = f"UPDATE {schema_name}.{table_name} SET {columns} {where['placeholder']}"
             self.cursor.execute(query, all_values)
             self.connection.commit()
-            return True
+            return {'success': True, 'data': None}
         except Exception as e:
-            print(f"Failed to updated row: {e}")
-            return str(e)
+            return {'success': False, 'error': f"Failed to update rows in {table_name}: " + str(e)}
 
         pass
 
@@ -243,16 +240,13 @@ class DatabaseClient:
         ##Check to see if it's already set/stored
         if self._check_table_dictionary(table_name, 'columns'):
             return self.table_info[table_name]['columns']   
-        
+           
         query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table_name}' AND TABLE_SCHEMA = '{schema_name}'"    
-        
-        try:
-            self.cursor.execute(query)
-            results = self.cursor.fetchall()
-            self.table_info[table_name]['columns'] =  [result[0] for result in results]
-            return self.table_info[table_name]['columns']
-        except Exception as e:
-            return str(e)
+        self.cursor.execute(query)
+        results = self.cursor.fetchall()
+        self.table_info[table_name]['columns'] =  [result[0] for result in results]
+        return self.table_info[table_name]['columns']
+       
    
     def _get_primary_key_name(self, table_name, schema_name = "dbo"):
         """
