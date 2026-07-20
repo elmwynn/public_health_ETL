@@ -1,5 +1,4 @@
 import pandas as pd
-from datetime import datetime
 from config import DRIVER
 from sqlalchemy import create_engine
 
@@ -35,7 +34,6 @@ class DatabaseClient:
             self.cursor = self.connection.cursor()
             return {'success': True, 'data': None}
         except Exception as e:
-            print(f"SQL Server connection FAILED: {e}")
             return {'success': False, 'error': str(e)}
     
     def close(self):
@@ -46,7 +44,7 @@ class DatabaseClient:
         self.connection.close()
         self.engine.dispose()  
 
-    def get_rows(self, table_name, select_what = "*", where_clause = {}, schema_name = "dbo"):  
+    def get_rows(self, table_name, where_clause, select_what = "*", schema_name = "dbo"):  
         """
         Get the row 
 
@@ -73,7 +71,7 @@ class DatabaseClient:
 
         :data: A single dictionary of column:values to insert
         """
-        data[self.create_date] = datetime.now() ##set the create date
+        data[self.create_date] = pd.Timestamp.now() ##set the create date
 
         valid_columns = self._validate_columns(table_name, schema_name)
         ##filter only the valid items into the statement
@@ -99,7 +97,7 @@ class DatabaseClient:
         :data: A list of dictionaries containing data to be inserted
         """
         for row in data: ##set the create date for all rows
-            row[self.create_date] = datetime.now()
+            row[self.create_date] = pd.Timestamp.now()
 
         df = pd.DataFrame(data)
 
@@ -122,13 +120,13 @@ class DatabaseClient:
             self._get_primary_key_name(table_name, schema_name)
         
         primary_key = self.table_info[table_name]['p_key']
-        data[self.modify_date] = datetime.now() ##set the modify date 
+        data[self.modify_date] = pd.Timestamp.now() ##set the modify date 
 
         valid_columns = self._validate_columns(table_name, schema_name)
         filtered = {k: v for k, v in data.items() if k in valid_columns}
 
         columns = ', '.join(f"{col} = ?" for col in filtered)
-        all_values = tuple(filtered.values())  + tuple(primary_key_value,)
+        all_values = tuple(filtered.values()) + (primary_key_value,)
 
         try:
             query = f"UPDATE {schema_name}.{table_name} SET {columns} WHERE {primary_key} = ?"
@@ -136,6 +134,7 @@ class DatabaseClient:
             self.connection.commit()
             return {'success': True, 'data': None}
         except Exception as e:
+            self.connection.rollback()
             return {'success': False, 'error': f"Failed to update row in {table_name}: " + str(e)}
 
 
@@ -148,7 +147,7 @@ class DatabaseClient:
         """
 
         ##set the modify date for all rows
-        data[self.modify_date] = datetime.now()
+        data[self.modify_date] = pd.Timestamp.now()
         valid_columns = self._validate_columns(table_name, schema_name)   
         filtered = {k: v for k, v in data.items() if k in valid_columns} 
         columns = ', '.join(f"{col} = ?" for col in filtered)
@@ -161,6 +160,7 @@ class DatabaseClient:
             self.connection.commit()
             return {'success': True, 'data': None}
         except Exception as e:
+            self.connection.rollback()
             return {'success': False, 'error': f"Failed to update rows in {table_name}: " + str(e)}
 
     def bulk_update_by_id(self, data, table_name, id_name, schema_name = "dbo"):
@@ -171,8 +171,21 @@ class DatabaseClient:
         """
     
         for row in data: ##set the modify date for all rows
-            row[self.modify_date] = datetime.now() 
-
+            row[self.modify_date] = pd.Timestamp.now()
+        
+        valid_columns = self._validate_columns(table_name, schema_name)   
+        #loop through the list of dictionaries and for each dictionary, filter out the invalid columns 
+        filtered =  [{k: v for k, v in row.items() if k in valid_columns} for row in data]
+        columns_set = ', '.join(f"t.{col} = u.{col}" for col in filtered[0] if col != id_name)
+        # assumes all rows have same keys in same order (guaranteed for same-source API data)
+        all_values = tuple(value for row in filtered for value in row.values())
+        columns = ','.join(str(col) for col in filtered[0])
+        row_placeholder = '(' + ', '.join('?' for _ in filtered[0]) + ')'
+        placeholder = ', '.join(row_placeholder for _ in filtered)
+        query = f"UPDATE t SET {columns_set} FROM {schema_name}.{table_name} t INNER JOIN (VALUES {placeholder}) AS u({columns}) ON t.{id_name} = u.{id_name}"
+        self.cursor.execute(query, all_values)
+        self.connection.commit()
+       
         pass
     
 
@@ -210,7 +223,7 @@ class DatabaseClient:
         ## Filter the passed DataFrame to only include valid columns for bulk operations
         return df[[col for col in df.columns if col in self.table_info[table_name]['columns']]]
     
-    def _build_where_clause(self, where = {}, key_word = "AND"):
+    def _build_where_clause(self, where, key_word = "AND"):
         """
         Builds the where string for the query
 
@@ -251,10 +264,9 @@ class DatabaseClient:
         if self._check_table_dictionary(table_name, 'p_key'):
             return self.table_info[table_name]['p_key']
         
-        query = f"EXECUTE sys.sp_pkeys @table_name=N'{table_name}' @table_owner=N'{schema_name}'"
+        query = f"EXECUTE sys.sp_pkeys @table_name=N'{table_name}', @table_owner=N'{schema_name}'"
         self.cursor.execute(query)
-        results = self.cursor.fetchone()[0]
-        self.table_info[table_name]['p_key'] = results['COLUMN_NAME']
+        self.table_info[table_name]['p_key'] = self.cursor.fetchone()[3]
         return self.table_info[table_name]['p_key']
 
 

@@ -30,7 +30,7 @@ class BlobStorage:
         pass
 
     def blob_download(self, etl_step):
-        raw_data = json.loads(self.blob_service.download_blob().readall())
+        raw_data = json.loads(self.blob_container.download_blob().readall())
         pass
 
     def get_blob_name(self):

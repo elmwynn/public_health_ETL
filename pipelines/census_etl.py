@@ -28,7 +28,7 @@ class CensusETL:
         pass
 
     
-    def fetch_census_estimates(self,url, year, api_key, type):
+    def fetch_census_estimates(self,url, year, api_key, acs_type):
         pass
 
 
@@ -43,11 +43,11 @@ class CensusETL:
 
 
 
-    def run_census_ETL(self, year = None, type = None, select_group = None ):
+    def run_census_ETL(self, year = None, acs_type = None, select_group = None ):
         """
         Run the Census ETL process.
         """
-        self.base_url = self.db_client.get_rows('api_info', 'base_url', {'api_id': self.api_id}, 'config')[0]['base_url']
+        self.base_url = self.db_client.get_rows('api_info', {'api_id': self.api_id},'base_url', 'config')[0]['base_url']
         print(self.base_url)
         pass
 
