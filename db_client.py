@@ -8,12 +8,6 @@ class DatabaseClient:
     """
     A dynamic class to manage the connection and SQL transactions to the Azure DB Server.
     """
-    secrets = None
-    engine = None
-    connection = None
-    cursor = None
-    container = None
-    table_info = None
     ##To make it more dynamic, store flags in extended properties and grab:
     create_date = "create_date" 
     modify_date = "modify_date"
@@ -21,7 +15,12 @@ class DatabaseClient:
 
     def __init__(self, secrets):
         self.secrets = secrets
+        self.engine = None
+        self.connection = None
+        self.cursor = None
+        self.container = None
         self.table_info = {}
+
         self.connect()
 
     def connect(self):
@@ -104,12 +103,11 @@ class DatabaseClient:
         data[self.create_date] = datetime.now() ##set the create date
 
         valid_columns = self._validate_columns(table_name, schema_name)
+        ##filter only the valid items into the statement
         filtered = {k: v for k, v in data.items() if k in valid_columns}
-
         columns = ', '.join(filtered.keys())
         placeholders = ', '.join(['?'] * len(filtered))
         values = tuple(filtered.values())  
-        
 
         try: ## use raw connection to return the primary key 
             query = f"INSERT INTO {schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
@@ -134,7 +132,7 @@ class DatabaseClient:
         df = pd.DataFrame(data)
 
         try:
-            df = self._validate_columns(df, table_name, schema_name)
+            df = self._validate_columns(table_name, schema_name, df)
             df.to_sql(table_name, self.engine, schema=schema_name, if_exists='append', index=False)
             return True
         except Exception as e:
@@ -158,11 +156,11 @@ class DatabaseClient:
         filtered = {k: v for k, v in data.items() if k in valid_columns}
 
         columns = ', '.join(f"{col} = ?" for col in filtered)
-        values = tuple(filtered.values())  
+        all_values = tuple(filtered.values())  + tuple(primary_key_value,)
 
         try:
-            query = f"UPDATE {schema_name}.{table_name} SET {columns} WHERE {primary_key} = {primary_key_value}"
-            self.cursor.execute(query, values)
+            query = f"UPDATE {schema_name}.{table_name} SET {columns} WHERE {primary_key} = ?"
+            self.cursor.execute(query, all_values)
             self.connection.commit()
             return True
         except Exception as e:
@@ -183,7 +181,7 @@ class DatabaseClient:
             row[self.modify_date] = datetime.now()
         
         df = pd.DataFrame(data)
-        df = self._validate_columns(df, table_name, schema_name)    
+        df = self._validate_columns(table_name, schema_name, df)    
         columns = ', '.join(f"{col} = ?" for col in df.columns)
         values = tuple(df.values[0])
         try:
@@ -191,7 +189,7 @@ class DatabaseClient:
             all_values = values + where['values']
             query = f"UPDATE {schema_name}.{table_name} SET {columns} {where['placeholder']}"
 
-            self.cursor.execute(query, values)
+            self.cursor.execute(query, all_values)
             self.connection.commit()
             return True
         except Exception as e:
@@ -242,9 +240,9 @@ class DatabaseClient:
         if not self._check_table_dictionary(table_name, 'columns'):
             self.get_column_names(table_name, schema_name)
         
-        if df is None:
+        if df is None: ##single row operations, return the valid columns.
             return self.table_info[table_name]['columns']
-        ## Filter the DataFrame to only include valid columns 
+        ## Filter the passed DataFrame to only include valid columns for bulk operations
         return df[[col for col in df.columns if col in self.table_info[table_name]['columns']]]
     
     def _build_where_clause(self, where = {}, key_word = "AND"):

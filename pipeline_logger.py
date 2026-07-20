@@ -8,14 +8,12 @@ class PipelineLogger:
     :api_id: The id of the api being called
     :db_client: The DatabaseClient object
     """
-    log_id = None
-    api_id = None
-    db_client = None
     
 
     def __init__(self, db_client, api_id):
         self.db_client = db_client
         self.api_id = api_id 
+        self.log_id = None
 
 
     def create_ETL_log(self, data = {}):

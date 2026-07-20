@@ -4,15 +4,14 @@ import json
 
 
 class BlobStorage:
-    secrets = None
-    api_id = None
-    blob_service = None
-    blob_container = None
-    blob_dictionary = None
+   
 
     def __init__(self, secrets, api_id):
-        self.api_id = api_id
         self.secrets = secrets
+        self.api_id = api_id
+        self.blob_service = None
+        self.blob_container = None
+        self.blob_dictionary = None
         self.blob_connect()
         pass
     
