@@ -102,10 +102,14 @@ class DatabaseClient:
         :data: A single dictionary of column:values to insert
         """
         data[self.create_date] = datetime.now() ##set the create date
+
         valid_columns = self._validate_columns(table_name, schema_name)
         filtered = {k: v for k, v in data.items() if k in valid_columns}
-        columns = ', '.join(f"{col} = ?" for col in filtered)
+
+        columns = ', '.join(filtered.keys())
+        placeholders = ', '.join(['?'] * len(filtered))
         values = tuple(filtered.values())  
+        
 
         try: ## use raw connection to return the primary key 
             query = f"INSERT INTO {schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
