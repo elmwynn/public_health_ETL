@@ -57,13 +57,13 @@ class DatabaseClient:
         if where_clause:
             where = self._build_where_clause(where_clause)
             query += f"{where['placeholder']}"
-            self.cursor(query, where['values'])
+            self.cursor.execute(query, where['values'])
         else:
-            self.cursor(query)
+            self.cursor.execute(query)
             
         results = self.cursor.fetchall()
         column_names = [desc[0] for desc in self.cursor.description]
-        return [dict(zip(column_names, row) for row in results)]
+        return [dict(zip(column_names, row)) for row in results]
     
        
     def single_insert(self, data, table_name, schema_name = "dbo"):
@@ -137,7 +137,6 @@ class DatabaseClient:
             return {'success': True, 'data': None}
         except Exception as e:
             return {'success': False, 'error': f"Failed to update row in {table_name}: " + str(e)}
-        
 
 
     def bulk_update_by_where(self, data, table_name, where_clause, schema_name = "dbo"):
@@ -148,7 +147,7 @@ class DatabaseClient:
         :where_clause: A dictionary of column_name:column_value containing the where condition
         """
 
-         ##set the modify date for all rows
+        ##set the modify date for all rows
         data[self.modify_date] = datetime.now()
         valid_columns = self._validate_columns(table_name, schema_name)   
         filtered = {k: v for k, v in data.items() if k in valid_columns} 
@@ -163,8 +162,6 @@ class DatabaseClient:
             return {'success': True, 'data': None}
         except Exception as e:
             return {'success': False, 'error': f"Failed to update rows in {table_name}: " + str(e)}
-
-        pass
 
     def bulk_update_by_id(self, data, table_name, id_name, schema_name = "dbo"):
         """
@@ -223,13 +220,12 @@ class DatabaseClient:
         placeholder = "WHERE "
         match key_word:
             case "AND": # format: {"column_name_one": value, "column_name_two": value...}
-                placeholder = " AND ".join(f"{key} = ? " for key in where)
+                placeholder += " AND ".join(f"{key} = ? " for key in where)
                 values = tuple(where.values())
             case "IN":  # format: {"column_name": [value, value, value]}
                 column = next(iter(where))
                 placeholder += f"{column} IN (" +  ', '.join(['?'] * len(where[column])) + ")"
                 values = tuple(where[column])
-
         return {'placeholder' : placeholder, 'values': values }
 
         
