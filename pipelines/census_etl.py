@@ -46,4 +46,8 @@ class CensusETL:
 
     
 
-test = CensusETL()    
+test = DatabaseClient(get_secrets());
+
+hi = test.get_primary_key_name('api_info','config')
+print(hi)
+      

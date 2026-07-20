@@ -57,40 +57,13 @@ class DatabaseClient:
         if where_clause:
             where = self._build_where_clause(where_clause)
             query += f"{where['placeholder']}"
-            result = pd.read_sql_query(query, self.engine, params=where['values'])
+            self.cursor(query, where['values'])
         else:
-            result = pd.read_sql_query(query, self.engine)
-    
-        return result.to_dict('records')
-    
-    def get_column_names(self, table_name, schema_name = "dbo"):
-        """
-        Get the column names of a specified table in the Azure DB.
-        """
-        ##Check to see if it's already set/stored
-        if self._check_table_dictionary(table_name, 'columns'):
-            return self.table_info[table_name]['columns']   
-        
-        query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table_name}' AND TABLE_SCHEMA = '{schema_name}'"    
-        
-        try:
-            result = pd.read_sql_query(query, self.engine)
-            self.table_info[table_name]['columns'] =  result['COLUMN_NAME'].tolist()
-            return self.table_info[table_name]['columns']
-        except Exception as e:
-            return str(e)
-   
-    def get_primary_key_name(self, table_name, schema_name = "dbo"):
-        """
-        Get the primary key of a specified table in the Azure DB.
-        """
-        if self._check_table_dictionary(table_name, 'p_key'):
-            return self.table_info[table_name]['p_key']
-        
-        query = f"EXECUTE sys.sp_pkeys @table_name=N'{table_name}' @table_owner=N'{schema_name}'"
-        result = pd.read_sql_query(query, self.engine)
-        self.table_info[table_name]['p_key'] = result['COLUMN_NAME'].iloc[0]
-        return self.table_info[table_name]['p_key']
+            self.cursor(query)
+            
+        results = self.cursor.fetchall()
+        column_names = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(column_names, row) for row in results)]
     
        
     def single_insert(self, data, table_name, schema_name = "dbo"):
@@ -147,7 +120,7 @@ class DatabaseClient:
         :primary_key_value: The actual value of the PK, not the PK name
         """
         if not self._check_table_dictionary(table_name, 'p_key'):
-            self.get_primary_key_name(table_name, schema_name)
+            self._get_primary_key_name(table_name, schema_name)
         
         primary_key = self.table_info[table_name]['p_key']
         data[self.modify_date] = datetime.now() ##set the modify date 
@@ -177,18 +150,16 @@ class DatabaseClient:
         :where_clause: A dictionary of column_name:column_value containing the where condition
         """
 
-        for row in data: ##set the modify date for all rows
-            row[self.modify_date] = datetime.now()
-        
-        df = pd.DataFrame(data)
-        df = self._validate_columns(table_name, schema_name, df)    
-        columns = ', '.join(f"{col} = ?" for col in df.columns)
-        values = tuple(df.values[0])
+         ##set the modify date for all rows
+        data[self.modify_date] = datetime.now()
+        valid_columns = self._validate_columns(table_name, schema_name)   
+        filtered = {k: v for k, v in data.items() if k in valid_columns} 
+        columns = ', '.join(f"{col} = ?" for col in filtered)
+        values = tuple(filtered.values())
         try:
             where = self._build_where_clause(where_clause)
             all_values = values + where['values']
             query = f"UPDATE {schema_name}.{table_name} SET {columns} {where['placeholder']}"
-
             self.cursor.execute(query, all_values)
             self.connection.commit()
             return True
@@ -238,7 +209,7 @@ class DatabaseClient:
         :df: DataFrame to validate against
         """
         if not self._check_table_dictionary(table_name, 'columns'):
-            self.get_column_names(table_name, schema_name)
+            self._get_column_names(table_name, schema_name)
         
         if df is None: ##single row operations, return the valid columns.
             return self.table_info[table_name]['columns']
@@ -265,8 +236,37 @@ class DatabaseClient:
         return {'placeholder' : placeholder, 'values': values }
 
         
+    def _get_column_names(self, table_name, schema_name = "dbo"):
+        """
+        Get the column names of a specified table in the Azure DB.
+        """
+        ##Check to see if it's already set/stored
+        if self._check_table_dictionary(table_name, 'columns'):
+            return self.table_info[table_name]['columns']   
+        
+        query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table_name}' AND TABLE_SCHEMA = '{schema_name}'"    
+        
+        try:
+            self.cursor.execute(query)
+            results = self.cursor.fetchall()
+            self.table_info[table_name]['columns'] =  [result[0] for result in results]
+            return self.table_info[table_name]['columns']
+        except Exception as e:
+            return str(e)
+   
+    def _get_primary_key_name(self, table_name, schema_name = "dbo"):
+        """
+        Get the primary key of a specified table in the Azure DB.
+        """
+        if self._check_table_dictionary(table_name, 'p_key'):
+            return self.table_info[table_name]['p_key']
+        
+        query = f"EXECUTE sys.sp_pkeys @table_name=N'{table_name}' @table_owner=N'{schema_name}'"
+        self.cursor.execute(query)
+        results = self.cursor.fetchone()[0]
+        self.table_info[table_name]['p_key'] = results['COLUMN_NAME']
+        return self.table_info[table_name]['p_key']
 
-       
 
           
 
