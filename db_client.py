@@ -19,7 +19,6 @@ class DatabaseClient:
         self.cursor = None
         self.container = None
         self.table_info = {}
-
         self.connect()
 
     def connect(self):
@@ -40,68 +39,75 @@ class DatabaseClient:
         """
         Close the connection to the Azure DB Server.
         """
-        self.cursor.close()
-        self.connection.close()
-        self.engine.dispose()  
+        if self.cursor:
+            self.cursor.close()
+        if self.connection: 
+            self.connection.close()
+        if self.engine:
+            self.engine.dispose()  
 
-    def get_rows(self, table_name, where_clause, select_what = "*", schema_name = "dbo"):  
+    def get_rows(self, table_name: str, where_clause: dict, select_what = "*", schema_name = "dbo"):  
         """
         Get the row 
 
         :select_what: Column(s) being selected for
         :where_clause: A dictionary like column_name:column_value to form the where clause
         """
-        query = f"SELECT {select_what} FROM {schema_name}.{table_name} "
-        if where_clause:
-            where = self._build_where_clause(where_clause)
-            query += f"{where['placeholder']}"
-            self.cursor.execute(query, where['values'])
-        else:
-            self.cursor.execute(query)
-            
-        results = self.cursor.fetchall()
-        column_names = [desc[0] for desc in self.cursor.description]
-        return [dict(zip(column_names, row)) for row in results]
+        try:
+            query = f"SELECT {select_what} FROM {schema_name}.{table_name} "
+            if where_clause:
+                where = self._build_where_clause(where_clause)
+                query += f"{where['placeholder']}"
+                self.cursor.execute(query, where['values'])
+            else:
+                self.cursor.execute(query)
+            results = self.cursor.fetchall()
+            column_names = [desc[0] for desc in self.cursor.description]
+            return {'success': True, 'data': [dict(zip(column_names, row)) for row in results]}
+        except Exception as e:
+            return {'success': False, 'error': f"Failed to fetch data from {table_name}: " + str(e)}
     
        
-    def single_insert(self, data, table_name, schema_name = "dbo"):
+    def single_insert(self, data: dict, table_name: str, schema_name = "dbo"):
         """
         Insert data into the Azure DB Server.
         Return insert id
 
         :data: A single dictionary of column:values to insert
         """
-        data[self.create_date] = pd.Timestamp.now() ##set the create date
+        try:
+            if not self._check_table_dictionary(table_name, 'p_key'):
+                self._get_primary_key_name(table_name, schema_name)
 
-        valid_columns = self._validate_columns(table_name, schema_name)
-        ##filter only the valid items into the statement
-        filtered = {k: v for k, v in data.items() if k in valid_columns}
-        columns = ', '.join(filtered.keys())
-        placeholders = ', '.join(['?'] * len(filtered))
-        values = tuple(filtered.values())  
+            data[self.create_date] = pd.Timestamp.now() ##set the create date
+            valid_columns = self._validate_columns(table_name, schema_name)
+            ##filter only the valid items into the statement
+            filtered = {k: v for k, v in data.items() if k in valid_columns}
+            columns = ', '.join(filtered.keys())
+            placeholders = ', '.join(['?'] * len(filtered))
+            values = tuple(filtered.values())  
 
-        try: ## use raw connection to return the primary key 
-            query = f"INSERT INTO {schema_name}.{table_name} ({columns}) VALUES ({placeholders})"
+            ## use raw connection to return the primary key value
+            query = f"INSERT INTO {schema_name}.{table_name} ({columns}) OUTPUT INSERTED.{self.table_info[table_name]['p_key']} VALUES ({placeholders})"
             self.cursor.execute(query, values)
+            insert_id = self.cursor.fetchone()[0]
             self.connection.commit()
-            self.cursor.execute("SELECT SCOPE_IDENTITY()")
-            return {'success': True, 'data': self.cursor.fetchone()[0]}
+            return {'success': True, 'data': insert_id}
         except Exception as e:
             self.connection.rollback()
             return {'success': False, 'error': f"Failed insert into {table_name}: " + str(e)}
 
-    def bulk_insert(self, data, table_name, schema_name = "dbo"):
+    def bulk_insert(self, data: list, table_name: str, schema_name = "dbo"):
         """
         Insert bulk data into the specified table on Azure DB Server.
 
         :data: A list of dictionaries containing data to be inserted
         """
-        for row in data: ##set the create date for all rows
-            row[self.create_date] = pd.Timestamp.now()
-
-        df = pd.DataFrame(data)
-
         try:
+            for row in data: ##set the create date for all rows
+                row[self.create_date] = pd.Timestamp.now()
+
+            df = pd.DataFrame(data)
             df = self._validate_columns(table_name, schema_name, df)
             df.to_sql(table_name, self.engine, schema=schema_name, if_exists='append', index=False)
             return {'success': True, 'data': None}
@@ -109,26 +115,25 @@ class DatabaseClient:
             return {'success': False, 'error': f"Failed insert into {table_name}: " + str(e)}
             
 
-    def single_update(self, data, table_name, primary_key_value, schema_name = "dbo"):
+    def single_update(self, data: dict, table_name: str, primary_key_value, schema_name = "dbo"):
         """
         Update a single row based on its primary key
 
         :data: A single dictionary of column:values to update
         :primary_key_value: The actual value of the PK, not the PK name
         """
-        if not self._check_table_dictionary(table_name, 'p_key'):
-            self._get_primary_key_name(table_name, schema_name)
-        
-        primary_key = self.table_info[table_name]['p_key']
-        data[self.modify_date] = pd.Timestamp.now() ##set the modify date 
-
-        valid_columns = self._validate_columns(table_name, schema_name)
-        filtered = {k: v for k, v in data.items() if k in valid_columns}
-
-        columns = ', '.join(f"{col} = ?" for col in filtered)
-        all_values = tuple(filtered.values()) + (primary_key_value,)
-
         try:
+            if not self._check_table_dictionary(table_name, 'p_key'):
+                self._get_primary_key_name(table_name, schema_name)
+            
+            primary_key = self.table_info[table_name]['p_key']
+            data[self.modify_date] = pd.Timestamp.now() ##set the modify date 
+
+            valid_columns = self._validate_columns(table_name, schema_name)
+            filtered = {k: v for k, v in data.items() if k in valid_columns}
+
+            columns = ', '.join(f"{col} = ?" for col in filtered)
+            all_values = tuple(filtered.values()) + (primary_key_value,)
             query = f"UPDATE {schema_name}.{table_name} SET {columns} WHERE {primary_key} = ?"
             self.cursor.execute(query, all_values)
             self.connection.commit()
@@ -138,23 +143,23 @@ class DatabaseClient:
             return {'success': False, 'error': f"Failed to update row in {table_name}: " + str(e)}
 
 
-    def bulk_update_by_where(self, data, table_name, where_clause, schema_name = "dbo"):
+    def bulk_update_by_where(self, data: dict, table_name: str, where_clause: dict, schema_name = "dbo"):
         """
         Update a number of rows with the same values, hopefully based on a where condition
 
         :data: A single dictionary containing the data column_name:value to be updated
         :where_clause: A dictionary of column_name:column_value containing the where condition
         """
-
-        ##set the modify date for all rows
-        data[self.modify_date] = pd.Timestamp.now()
-        valid_columns = self._validate_columns(table_name, schema_name)   
-        filtered = {k: v for k, v in data.items() if k in valid_columns} 
-        columns = ', '.join(f"{col} = ?" for col in filtered)
-        values = tuple(filtered.values())
         try:
+            ##set the modify date for all rows
+            data[self.modify_date] = pd.Timestamp.now()
+            valid_columns = self._validate_columns(table_name, schema_name)   
+            filtered = {k: v for k, v in data.items() if k in valid_columns} 
+            columns = ', '.join(f"{col} = ?" for col in filtered)
+            values = tuple(filtered.values())
             where = self._build_where_clause(where_clause)
             all_values = values + where['values']
+
             query = f"UPDATE {schema_name}.{table_name} SET {columns} {where['placeholder']}"
             self.cursor.execute(query, all_values)
             self.connection.commit()
@@ -163,35 +168,40 @@ class DatabaseClient:
             self.connection.rollback()
             return {'success': False, 'error': f"Failed to update rows in {table_name}: " + str(e)}
 
-    def bulk_update_by_id(self, data, table_name, id_name, schema_name = "dbo"):
+    def bulk_update_by_id(self, data: list, table_name: str, id_name: str, schema_name = "dbo"):
         """
         Update a number of rows with different values based on the specified identifier
 
         :data: A list of dictionaries containing the data column_name:values,... to be updated
         """
+        try:
+            for row in data: ##set the modify date for all rows
+                row[self.modify_date] = pd.Timestamp.now()
+            
+            valid_columns = self._validate_columns(table_name, schema_name)   
+            #loop through the list of dictionaries and for each dictionary, filter out the invalid columns 
+            filtered =  [{k: v for k, v in row.items() if k in valid_columns} for row in data]
+            columns_set = ', '.join(f"t.{col} = u.{col}" for col in filtered[0] if col != id_name)
+            # assumes all rows have same keys in same order (guaranteed for same-source API data)
+            all_values = tuple(value for row in filtered for value in row.values())
+            columns = ','.join(str(col) for col in filtered[0])
+            row_placeholder = '(' + ', '.join('?' for _ in filtered[0]) + ')'
+            placeholder = ', '.join(row_placeholder for _ in filtered)
     
-        for row in data: ##set the modify date for all rows
-            row[self.modify_date] = pd.Timestamp.now()
-        
-        valid_columns = self._validate_columns(table_name, schema_name)   
-        #loop through the list of dictionaries and for each dictionary, filter out the invalid columns 
-        filtered =  [{k: v for k, v in row.items() if k in valid_columns} for row in data]
-        columns_set = ', '.join(f"t.{col} = u.{col}" for col in filtered[0] if col != id_name)
-        # assumes all rows have same keys in same order (guaranteed for same-source API data)
-        all_values = tuple(value for row in filtered for value in row.values())
-        columns = ','.join(str(col) for col in filtered[0])
-        row_placeholder = '(' + ', '.join('?' for _ in filtered[0]) + ')'
-        placeholder = ', '.join(row_placeholder for _ in filtered)
-        query = f"UPDATE t SET {columns_set} FROM {schema_name}.{table_name} t INNER JOIN (VALUES {placeholder}) AS u({columns}) ON t.{id_name} = u.{id_name}"
-        self.cursor.execute(query, all_values)
-        self.connection.commit()
+            query = f"UPDATE t SET {columns_set} FROM {schema_name}.{table_name} t INNER JOIN (VALUES {placeholder}) AS u({columns}) ON t.{id_name} = u.{id_name}"
+            self.cursor.execute(query, all_values)
+            self.connection.commit()
+            return {'success': True, 'data': None}
+        except Exception as e:
+            self.connection.rollback()
+            return {'success': False, 'error': f"Failed to update rows in {table_name}: " + str(e)}
        
-        pass
+        
     
 
     ## CLASS HELPERS ##
 
-    def _check_table_dictionary(self, table_name, look_up = None):    
+    def _check_table_dictionary(self, table_name: str, look_up = None):    
         """
         Check if table exists in the dictionary. If not, create it.
 
@@ -209,7 +219,7 @@ class DatabaseClient:
         return True
         
 
-    def _validate_columns(self, table_name, schema_name = "dbo", df = None):
+    def _validate_columns(self, table_name: str, schema_name = "dbo", df = None):
         """
         Dynamically validate the columns of the data against the table's actual columns in the Azure DB.
 
@@ -223,7 +233,7 @@ class DatabaseClient:
         ## Filter the passed DataFrame to only include valid columns for bulk operations
         return df[[col for col in df.columns if col in self.table_info[table_name]['columns']]]
     
-    def _build_where_clause(self, where, key_word = "AND"):
+    def _build_where_clause(self, where: dict, key_word = "AND"):
         """
         Builds the where string for the query
 
@@ -242,7 +252,7 @@ class DatabaseClient:
         return {'placeholder' : placeholder, 'values': values }
 
         
-    def _get_column_names(self, table_name, schema_name = "dbo"):
+    def _get_column_names(self, table_name: str, schema_name = "dbo"):
         """
         Get the column names of a specified table in the Azure DB.
         """
@@ -257,7 +267,7 @@ class DatabaseClient:
         return self.table_info[table_name]['columns']
        
    
-    def _get_primary_key_name(self, table_name, schema_name = "dbo"):
+    def _get_primary_key_name(self, table_name: str, schema_name = "dbo"):
         """
         Get the primary key of a specified table in the Azure DB.
         """

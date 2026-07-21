@@ -16,7 +16,7 @@ class PipelineLogger:
         self.log_id = None
 
 
-    def create_ETL_log(self, data = {}):
+    def create_ETL_log(self, data:dict = None):
         """
         Create the log entry for the pipeline run
         """
@@ -28,20 +28,21 @@ class PipelineLogger:
         }
         merged_data = defaults | data
         #insert the log item and set the log_id
-        self.log_id = self.db_client.single_insert(merged_data, )
+        self.log_id = self.db_client.single_insert(merged_data, 'etl_run_log', 'config')
            
 
-    def update_ETL_log(self, data = {}):
+    def update_ETL_log(self, data:dict = None, completed:int = None):
         """
         Update the log entry for the pipeline run
         """
-        defaults = {
-            'last_heartbeat': datetime.now()
-        }
-        merged_data = defaults | data
-        self.db_client.single_update
-        pass 
+        data['last_heartbeat'] = datetime.now()
+        if completed:
+            data['completed'] = datetime.now() 
+        self.db_client.single_update(data, 'etl_run_log', self.log_id, 'config')
 
     
     def determine_ETL_endstate(data):
+        """
+        Determine endstate of the pipeline run... should I even use this?
+        """
         pass

@@ -1,6 +1,6 @@
 CREATE TABLE [config].[api_info] (
     [api_id]      INT            IDENTITY (1, 1) NOT NULL,
-    [description] VARBINARY (50) NULL,
+    [description] VARCHAR (50) NULL,
     [short_desc]  VARCHAR (50)   NULL,
     [base_url]    NVARCHAR (MAX) NULL,
     CONSTRAINT [PK_api_info] PRIMARY KEY CLUSTERED ([api_id] ASC)
