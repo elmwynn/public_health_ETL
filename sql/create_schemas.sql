@@ -1,0 +1,5 @@
+CREATE SCHEMA config;
+GO
+
+CREATE SCHEMA census;
+GO
