@@ -17,7 +17,6 @@ class DatabaseClient:
         self.engine = None
         self.connection = None
         self.cursor = None
-        self.container = None
         self.table_info = {}
         self.connect()
 
@@ -44,7 +43,7 @@ class DatabaseClient:
         if self.engine:
             self.engine.dispose()  
 
-    def get_rows(self, table_name: str, where_clause: dict, select_what:str = "*", schema_name:str = "dbo"):  
+    def get_rows(self, table_name: str, where_clause: dict = None, select_what:str = "*", schema_name:str = "dbo"):  
         """
         Get the row 
 
