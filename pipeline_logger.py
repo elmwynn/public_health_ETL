@@ -35,8 +35,8 @@ class PipelineLogger:
         }
         merged_data = defaults | data
         #insert the log item and set the log_id
-        self.log_id = self.db_client.single_insert(merged_data, 'etl_run_log', 'config')
-           
+        result = self.db_client.single_insert(merged_data, 'etl_run_log', 'config')
+        self.log_id = result['data']  
 
     def update_ETL_log(self, data:dict = None, completed:int = None):
         """
