@@ -24,16 +24,13 @@ class DatabaseClient:
     def connect(self):
         """
         Establish a connection to the Azure DB Server.
-        """ 
-        try:    
-            connection_string = f"mssql+pyodbc://{self.secrets['USER']}:{self.secrets['PASS']}@{self.secrets['SERVER']}/{self.secrets['DB']}?driver={DRIVER}"
-            #Engine for bulk inserts/updates. Connection for dynamic single inserts
-            self.engine = create_engine(connection_string)
-            self.connection = self.engine.raw_connection()
-            self.cursor = self.connection.cursor()
-            return {'success': True, 'data': None}
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        """   
+        connection_string = f"mssql+pyodbc://{self.secrets['USER']}:{self.secrets['PASS']}@{self.secrets['SERVER']}/{self.secrets['DB']}?driver={DRIVER}"
+        #Engine for bulk inserts/updates. Connection for dynamic single inserts
+        self.engine = create_engine(connection_string)
+        self.connection = self.engine.raw_connection()
+        self.cursor = self.connection.cursor()
+       
     
     def close(self):
         """
@@ -46,7 +43,7 @@ class DatabaseClient:
         if self.engine:
             self.engine.dispose()  
 
-    def get_rows(self, table_name: str, where_clause: dict, select_what = "*", schema_name = "dbo"):  
+    def get_rows(self, table_name: str, where_clause: dict, select_what:str = "*", schema_name:str = "dbo"):  
         """
         Get the row 
 
@@ -68,7 +65,7 @@ class DatabaseClient:
             return {'success': False, 'error': f"Failed to fetch data from {table_name}: " + str(e)}
     
        
-    def single_insert(self, data: dict, table_name: str, schema_name = "dbo"):
+    def single_insert(self, data: dict, table_name: str, schema_name:str = "dbo"):
         """
         Insert data into the Azure DB Server.
         Return insert id
@@ -115,7 +112,7 @@ class DatabaseClient:
             return {'success': False, 'error': f"Failed insert into {table_name}: " + str(e)}
             
 
-    def single_update(self, data: dict, table_name: str, primary_key_value, schema_name = "dbo"):
+    def single_update(self, data: dict, table_name: str, primary_key_value:int, schema_name = "dbo"):
         """
         Update a single row based on its primary key
 
@@ -168,7 +165,7 @@ class DatabaseClient:
             self.connection.rollback()
             return {'success': False, 'error': f"Failed to update rows in {table_name}: " + str(e)}
 
-    def bulk_update_by_id(self, data: list, table_name: str, id_name: str, schema_name = "dbo"):
+    def bulk_update_by_id(self, data: list, table_name: str, id_name: str, schema_name:str = "dbo"):
         """
         Update a number of rows with different values based on the specified identifier
 
@@ -201,7 +198,7 @@ class DatabaseClient:
 
     ## CLASS HELPERS ##
 
-    def _check_table_dictionary(self, table_name: str, look_up = None):    
+    def _check_table_dictionary(self, table_name: str, look_up:str = None):    
         """
         Check if table exists in the dictionary. If not, create it.
 
@@ -219,7 +216,7 @@ class DatabaseClient:
         return True
         
 
-    def _validate_columns(self, table_name: str, schema_name = "dbo", df = None):
+    def _validate_columns(self, table_name: str, schema_name:str = "dbo", df = None):
         """
         Dynamically validate the columns of the data against the table's actual columns in the Azure DB.
 
@@ -233,7 +230,7 @@ class DatabaseClient:
         ## Filter the passed DataFrame to only include valid columns for bulk operations
         return df[[col for col in df.columns if col in self.table_info[table_name]['columns']]]
     
-    def _build_where_clause(self, where: dict, key_word = "AND"):
+    def _build_where_clause(self, where: dict, key_word:str = "AND"):
         """
         Builds the where string for the query
 
@@ -252,7 +249,7 @@ class DatabaseClient:
         return {'placeholder' : placeholder, 'values': values }
 
         
-    def _get_column_names(self, table_name: str, schema_name = "dbo"):
+    def _get_column_names(self, table_name: str, schema_name:str = "dbo"):
         """
         Get the column names of a specified table in the Azure DB.
         """
@@ -267,7 +264,7 @@ class DatabaseClient:
         return self.table_info[table_name]['columns']
        
    
-    def _get_primary_key_name(self, table_name: str, schema_name = "dbo"):
+    def _get_primary_key_name(self, table_name: str, schema_name:str = "dbo"):
         """
         Get the primary key of a specified table in the Azure DB.
         """

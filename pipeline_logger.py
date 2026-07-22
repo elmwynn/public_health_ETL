@@ -1,4 +1,9 @@
 from datetime import datetime
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from db_client import DatabaseClient
 
 class PipelineLogger:
     """
@@ -10,7 +15,7 @@ class PipelineLogger:
     """
     
 
-    def __init__(self, db_client, api_id):
+    def __init__(self, db_client: 'DatabaseClient', api_id):
         self.db_client = db_client
         self.api_id = api_id 
         self.log_id = None
