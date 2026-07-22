@@ -38,14 +38,14 @@ class PipelineLogger:
         result = self.db_client.single_insert(merged_data, 'etl_run_log', 'config')
         self.log_id = result['data']  
 
-    def update_ETL_log(self, data:dict = None, completed:int = None):
+    def update_ETL_log(self, data:dict = None, is_completed:bool = False):
         """
         Update the log entry for the pipeline run
         """
         if data is None:
             data = {}
         data['last_heartbeat'] = datetime.now()
-        if completed:
+        if is_completed:
             data['completed'] = datetime.now() 
         self.db_client.single_update(data, 'etl_run_log', self.log_id, 'config')
 
