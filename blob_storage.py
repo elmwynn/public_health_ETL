@@ -60,7 +60,7 @@ class BlobStorage:
         """
         Check if the json has already been uploaded
         """
-        return file_key not in self.get_existing_files():
+        return file_key not in self.get_existing_files()
            
 
     def is_uploaded_in_session(self, file_key):
@@ -73,7 +73,7 @@ class BlobStorage:
         """
         Check if pipeline has been completed for that file
         """
-        return file_key in self.s_file_list and file_key in self.s_file_list_completed:
+        return file_key in self.s_file_list and file_key in self.s_file_list_completed
           
 
     def mark_step_completed(self, file_key):
