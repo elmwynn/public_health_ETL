@@ -17,7 +17,8 @@ class BlobStorage:
     
     def connect(self):
         """
-        Establish a connection with the cloud service client.
+        Establish a connection with the cloud service client. 
+        Exceptions bubble up to the calling ETL script.
         """
         self.service = BlobServiceClient.from_connection_string(self.secrets['BLOB'])
         self.container = self.service.get_container_client('raw-data')       
@@ -59,25 +60,21 @@ class BlobStorage:
         """
         Check if the json has already been uploaded
         """
-        if file_key not in self.get_existing_files():
-            return False
-        return True 
+        return file_key not in self.get_existing_files():
+           
 
     def is_uploaded_in_session(self, file_key):
         """
         Check if json has already been uploaded in the current pipeline run
         """
-        if file_key in self.s_file_list:
-            return True
-        return False
-
+        return file_key in self.s_file_list
+    
     def is_completed_in_session(self, file_key):
         """
         Check if pipeline has been completed for that file
         """
-        if file_key in self.s_file_list and file_key in self.s_file_list_completed:
-            return True
-        return False    
+        return file_key in self.s_file_list and file_key in self.s_file_list_completed:
+          
 
     def mark_step_completed(self, file_key):
         """

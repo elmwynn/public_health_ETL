@@ -24,6 +24,7 @@ class DatabaseClient:
     def connect(self):
         """
         Establish a connection to the Azure DB Server.
+        Exceptions bubble up to the calling ETL script.
         """   
         connection_string = f"mssql+pyodbc://{self.secrets['USER']}:{self.secrets['PASS']}@{self.secrets['SERVER']}/{self.secrets['DB']}?driver={DRIVER}"
         #Engine for bulk inserts/updates. Connection for dynamic single inserts
