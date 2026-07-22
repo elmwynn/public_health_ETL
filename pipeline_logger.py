@@ -1,5 +1,5 @@
-from datetime import datetime
 from __future__ import annotations
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,6 +25,8 @@ class PipelineLogger:
         """
         Create the log entry for the pipeline run
         """
+        if data is None:
+            data = {}
         defaults = {
             'api_id': self.api_id,
             'status_code' : 1,
@@ -40,13 +42,15 @@ class PipelineLogger:
         """
         Update the log entry for the pipeline run
         """
+        if data is None:
+            data = {}
         data['last_heartbeat'] = datetime.now()
         if completed:
             data['completed'] = datetime.now() 
         self.db_client.single_update(data, 'etl_run_log', self.log_id, 'config')
 
     
-    def determine_ETL_endstate(data):
+    def determine_ETL_endstate(self, data):
         """
         Determine endstate of the pipeline run... should I even use this?
         """

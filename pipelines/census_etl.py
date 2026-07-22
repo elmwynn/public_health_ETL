@@ -13,9 +13,9 @@ class CensusETL:
     def __init__(self):
         self.api_id = 1
         self.base_url = None
-        secrets = get_secrets()
-        self.db_client = DatabaseClient(secrets)
-        self.blob_storage = BlobStorage(secrets, self.api_id)
+        self.secrets = get_secrets()
+        self.db_client = DatabaseClient(self.secrets)
+        self.blob_storage = BlobStorage(self.secrets, self.api_id)
         self.logger = PipelineLogger(self.db_client, self.api_id)
         
 
@@ -32,7 +32,7 @@ class CensusETL:
         pass
 
 
-        
+
 
 
 
