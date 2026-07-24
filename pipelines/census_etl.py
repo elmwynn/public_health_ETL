@@ -19,16 +19,15 @@ class CensusETL:
         self.db_client = DatabaseClient(self.secrets)
         self.blob_storage = BlobStorage(self.secrets, self.api_id)
         self.logger = PipelineLogger(self.db_client, self.api_id)
-        self.query_template = {}
+       
         
 
   
     def fetch_census_geographies(self, url, year, api_key):
         try:
-            if not self.query_template:
-                self.query_template = db_client.get_rows('geography_types', 'census')['data']
+            query_template = db_client.get_rows('geography_types', 'census')['data']
 
-            for geography_type_info in self.query_template.items():
+            for geography_type_info in query_template:
                 modified_endpoint = url + geography_type_info['query_template'] + '&key=' + self.secrets('CENSUS_KEY')
                 response_key = geography_type_info['response_key']
                 geo_type_id = geography_type_info['geo_type_id']
@@ -42,7 +41,9 @@ class CensusETL:
 
                     items = [dict(zip(headers, row)) for row in rows]
                     geography_array = [dict(geo_id= item[response_key], description = item['NAME'], geo_type_id = geo_type_id, year = year) for item in items]
-                    return geography_array
+            
+
+            return geography_array
                 
 
 
