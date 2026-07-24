@@ -47,7 +47,7 @@ class PipelineLogger:
         data['last_heartbeat'] = datetime.now()
         if is_completed:
             data['completed'] = datetime.now() 
-        self.db_client.single_update(data, 'etl_run_log', self.log_id, 'config')
+        self.db_client.single_update(data, self.log_id, 'etl_run_log', 'config')
 
     
     def determine_ETL_endstate(self, data):

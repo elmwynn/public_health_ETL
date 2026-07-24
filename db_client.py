@@ -43,7 +43,7 @@ class DatabaseClient:
         if self.engine:
             self.engine.dispose()  
 
-    def get_rows(self, table_name: str, where_clause: dict = None, select_what:str = "*", schema_name:str = "dbo"):  
+    def get_rows(self, table_name: str, schema_name:str = "dbo", where_clause: dict = None, select_what:str = "*",  key_word: str = None):  
         """
         Get the row 
 
@@ -53,7 +53,7 @@ class DatabaseClient:
         try:
             query = f"SELECT {select_what} FROM {schema_name}.{table_name} "
             if where_clause:
-                where = self._build_where_clause(where_clause)
+                where = self._build_where_clause(where_clause, key_word)
                 query += f"{where['placeholder']}"
                 self.cursor.execute(query, where['values'])
             else:
@@ -112,7 +112,7 @@ class DatabaseClient:
             return {'success': False, 'error': f"Failed insert into {table_name}: " + str(e)}
             
 
-    def single_update(self, data: dict, table_name: str, primary_key_value:int, schema_name = "dbo"):
+    def single_update(self, data: dict, primary_key_value:int, table_name: str, schema_name = "dbo"):
         """
         Update a single row based on its primary key
 
@@ -140,7 +140,7 @@ class DatabaseClient:
             return {'success': False, 'error': f"Failed to update row in {table_name}: " + str(e)}
 
 
-    def bulk_update_by_where(self, data: dict, table_name: str, where_clause: dict, schema_name = "dbo"):
+    def bulk_update_by_where(self, data: dict, where_clause: dict, table_name: str, schema_name = "dbo"):
         """
         Update a number of rows with the same values, hopefully based on a where condition
 
@@ -165,7 +165,7 @@ class DatabaseClient:
             self.connection.rollback()
             return {'success': False, 'error': f"Failed to update rows in {table_name}: " + str(e)}
 
-    def bulk_update_by_id(self, data: list, table_name: str, id_name: str, schema_name:str = "dbo"):
+    def bulk_update_by_id(self, data: list, id_name: str, table_name: str, schema_name:str = "dbo"):
         """
         Update a number of rows with different values based on the specified identifier
 
