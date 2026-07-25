@@ -1,6 +1,7 @@
 from azure.storage.blob import BlobServiceClient
 from datetime import datetime
 import json
+import requests
 
 
 class BlobStorage:
@@ -82,3 +83,15 @@ class BlobStorage:
         """
         if file_key not in self.s_file_list_completed:
             self.s_file_list_completed.append(file_key)
+
+
+    def fetch_or_retrieve(self, url, etl_step):
+        file_key = f"{self.api_id}/{etl_step}_{datetime.now().strftime('%Y%m%d')}.json"
+        if self.is_uploaded_at_start(file_key):
+            return self.download_raw(file_key)['data']
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            self.upload_raw(etl_step, data)
+            return data
+        return None       

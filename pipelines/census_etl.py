@@ -1,6 +1,4 @@
-import pandas as pd
-import requests
-import json
+from datetime import datetime
 import re
 from db_client import DatabaseClient
 from blob_storage import BlobStorage
@@ -21,6 +19,7 @@ class CensusETL:
         self.blob_storage = BlobStorage(self.secrets, self.api_id)
         self.logger = PipelineLogger(self.db_client, self.api_id)
         self.query_template = {}
+        self.run_timestamp = datetime.now().strftime('%Y%m%d')
         
 
   
@@ -28,64 +27,88 @@ class CensusETL:
         try:
             if not self.query_template:
                 self.query_template = self.db_client.get_rows('geography_types', 'census')['data']
-
+            
+            geography_array = []
+            
             for geography_type_info in self.query_template:
-                modified_url = url + geography_type_info['query_template'] + '&key=' + api_key
                 response_key = geography_type_info['response_key']
                 geo_type_id = geography_type_info['geo_type_id']
+                etl_step = f"geographies_{geo_type_id}"
+               
+                modified_url = url + geography_type_info['query_template'] + '&key=' + api_key
+                data = self.blob_storage.fetch_or_retrieve(modified_url, etl_step)
 
-                response = requests.get(f"{modified_url}")
-
-                if response.status_code == 200:
-                    data = response.json()
-                    headers = data[0]
-                    rows = data[1:]
-
+                if data:  
+                    headers = data[0] # format: ['column_name_one', 'column_name_two']
+                    rows = data[1:] # format: [[value_1, value_2], [value_3, value_4],...]
                     items = [dict(zip(headers, row)) for row in rows]
-                    geography_array = [dict(geo_id= item[response_key], description = item['NAME'], geo_type_id = geo_type_id, year = year) for item in items]
-            
+                    geography_array.extend([
+                        dict(
+                            geo_id = item[response_key],
+                            description = item['NAME'],
+                            geo_type_id = geo_type_id,
+                            year = year) 
+                            for item in items
+                            ])
 
             return geography_array
-                
-
-
         except Exception as e:
+            return []
 
-            pass
   
 
     def fetch_census_subcategories(self, url, year, api_key, select_category = None):
-        delimiter = self.db_client.get_rows('api_settings', 'config', {'api_setting_value' : 'ACS_delimiter'}, 'api_setting_value')['data'][0]['api_setting_value']
-        categories_data =  self.db_client.get_rows('categories', 'census')
+        try:
+            delimiter = self.db_client.get_rows('api_settings', 'config', {'api_setting_value' : 'ACS_delimiter'}, 'api_setting_value')['data'][0]['api_setting_value']
+            #get the endpoint_paths from the table and load into a {category_name : path,...} dictionary
+            categories_paths = {category['category']: category['endpoint_path'] for category in self.db_client.get_rows('categories', 'census')['data']}
+            categories = [select_category] if select_category else categories_paths.keys()
+            subcategory_array = []
+            for category in categories:
+                endpoint_path = categories_paths[category] if categories_paths[category] else ''
+                modified_url = url + endpoint_path + '/groups/' + category + '.json?key=' + api_key
+                data = self.blob_storage.fetch_or_retrieve(modified_url, category)
 
-        categories = [select_category] if select_category else [category['category'] for category in categories_data]
+                safe_delimiter = re.escape(delimiter)
 
-        for category in categories:
-            modified_url = url + categories_data[category]['endpoint_path'] + '/groups/' . category + '.json?key=' + api_key
-            response = requests.get(f"{modified_url}")
+                if data:
+                    ##Keep estimates and ignore percentages/margins. Also strip the character at the end for the internal identifier   
+                    filtered_subcategories = {re.sub(r'[a-zA-Z]+$', '', k): v for k, v in data.items() if k.endswith('E') and not k.endswith('PE') and k.startswith(category)}
+                    for subcategory, values in filtered_subcategories.items():
+                        ##Split the label up by the stored delimeter, stripping white space    
+                        parts = [part.strip() for part in re.split(safe_delimiter, values['label'])]
+                        count_parts = len(parts)
+                        ##determine what the in-house label and description will be based on the  length of the split up label
+                        label = parts[1] if count_parts > 1 else 'UNCATEGORIZED'
+                        description = (' - '.join(parts[2:]) if count_parts > 2 
+                                    else parts[1] if count_parts > 1 
+                                    else parts[0])
+                        
+                        subcategory_array.append(dict(
+                            category = category,
+                            subcategory = subcategory,
+                            label = label,
+                            description = description,
+                            raw_text = values['label'],
+                            year = year
+                        ))
 
-            safe_delimiter = re.escape(delimiter)
-
-            if response.status_code == 200:
-                data = response.json() 
-                ##Keep estimates and ignore percentages/margins. Also strip the character at the end for the internal identifier   
-                filtered_subcategories = {re.sub(r'[a-zA-Z]+$', '', k): v for k, v in data.items() if k.endswith('E') and not k.endswith('PE') and k.startswith(category)}
-                for subcategory in filtered_subcategories:
-                    parts = re.split(safe_delimiter, subcategory['label'])
-                    parts = [part.strip() for part in parts]
-
-
-                    pass
+            return subcategory_array
+        except Exception as e:
+            return[]
+                    
 
 
 
 
     
     def fetch_census_estimates(self,url, year, api_key, acs_type):
-        if not self.query_template:
-            self.query_template = self.db_client.get_rows('geography_types', 'census')['data']
+        try:
+            if not self.query_template:
+                self.query_template = self.db_client.get_rows('geography_types', 'census')['data']
 
-        pass
+        except Exception as e:
+            return []
 
 
 
