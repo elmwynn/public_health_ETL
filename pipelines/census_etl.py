@@ -18,10 +18,10 @@ class CensusETL:
         self.db_client = DatabaseClient(self.secrets)
         self.blob_storage = BlobStorage(self.secrets, self.api_id)
         self.logger = PipelineLogger(self.db_client, self.api_id)
-        self.query_template = {}
         self.run_timestamp = datetime.now().strftime('%Y%m%d')
+        self.query_template = {}
+        self.categories_path = {}
         
-
   
     def fetch_census_geographies(self, url, year, api_key):
         try:
@@ -60,16 +60,16 @@ class CensusETL:
     def fetch_census_subcategories(self, url, year, api_key, select_category = None):
         try:
             delimiter = self.db_client.get_rows('api_settings', 'config', {'api_setting_value' : 'ACS_delimiter'}, 'api_setting_value')['data'][0]['api_setting_value']
+            safe_delimiter = re.escape(delimiter)
             #get the endpoint_paths from the table and load into a {category_name : path,...} dictionary
-            categories_paths = {category['category']: category['endpoint_path'] for category in self.db_client.get_rows('categories', 'census')['data']}
-            categories = [select_category] if select_category else categories_paths.keys()
+            if not self.categories_path:
+                self.categories_paths = {category['category']: category['endpoint_path'] for category in self.db_client.get_rows('categories', 'census')['data']}
+            categories = [select_category] if select_category else self.categories_path.keys()
             subcategory_array = []
             for category in categories:
-                endpoint_path = categories_paths[category] if categories_paths[category] else ''
+                endpoint_path = self.categories_path[category] if self.categories_path[category] else ''
                 modified_url = url + endpoint_path + '/groups/' + category + '.json?key=' + api_key
-                data = self.blob_storage.fetch_or_retrieve(modified_url, category)
-
-                safe_delimiter = re.escape(delimiter)
+                data = self.blob_storage.fetch_or_retrieve(modified_url, f"subcategories_{category}")
 
                 if data:
                     ##Keep estimates and ignore percentages/margins. Also strip the character at the end for the internal identifier   
@@ -102,10 +102,24 @@ class CensusETL:
 
 
     
-    def fetch_census_estimates(self,url, year, api_key, acs_type):
+    def fetch_census_estimates(self,url, year, api_key, acs_type, select_category = None):
         try:
             if not self.query_template:
                 self.query_template = self.db_client.get_rows('geography_types', 'census')['data']
+
+            if not self.categories_path:
+                self.categories_paths = {category['category']: category['endpoint_path'] for category in self.db_client.get_rows('categories', 'census')['data']}
+
+            categories = [select_category] if select_category else self.categories_path.keys()
+            filtered_templates = [row for row in self.query_template if acs_type in row['acs_types'].split(",")]
+            for template in filtered_templates:
+                for category in categories:
+                    endpoint_path = self.categories_path[category] if self.categories_path[category] else ''
+                    modified_url =  url + endpoint_path + f"group({template['query_template'].replace('NAME', category)})" + "&key=" + api_key
+                    data = self.blob_storage.fetch_or_retrieve(modified_url, f"estimates_{category}")
+                    if data:
+                          pass
+
 
         except Exception as e:
             return []
@@ -127,5 +141,5 @@ class CensusETL:
         Run the Census ETL process.
         """
         self.base_url = self.db_client.get_rows('api_info', 'config',{'api_id': self.api_id},'base_url')['data'][0]['base_url']
-        print(self.base_url)
+       
         pass
