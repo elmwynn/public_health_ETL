@@ -125,7 +125,7 @@ class CensusETL:
                         for item in items:
                             for identifier, value in item.items():
                                 if identifier.endswith('E') and not identifier.endswith('PE') and identifier.startswith(category):
-                                    subcategory = re.sub(r'[a-zA-Z]+$', '', identifier)
+                                    subcategory = re.sub(r'[a-zA-Z]+$', '', identifier) ##Only loop when it's an estimate and the category matches
                                     estimate_array.append(
                                         dict(
                                             subcategory = subcategory,
@@ -147,5 +147,16 @@ class CensusETL:
         Run the Census ETL process.
         """
         self.base_url = self.db_client.get_rows('api_info', 'config',{'api_id': self.api_id},'base_url')['data'][0]['base_url']
-       
+        api_key = self.secrets['CENSUS_KEY']
+        ##testing:
+        url = self.base_url.replace('YEAR', '2024')
+        url = url.replace('TYPE', 'acs5')
+
+        geographies = self.fetch_census_geographies(url, 2024, api_key)
+
         pass
+
+
+test = CensusETL()
+
+test.run_census_ETL()

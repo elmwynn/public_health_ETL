@@ -43,7 +43,7 @@ class DatabaseClient:
         if self.engine:
             self.engine.dispose()  
 
-    def get_rows(self, table_name: str, schema_name:str = "dbo", where_clause: dict = None, select_what:str = "*",  key_word: str = None):  
+    def get_rows(self, table_name: str, schema_name:str = "dbo", where_clause: dict = None, select_what:str = "*",  key_word: str = "AND"):  
         """
         Get the row 
 

@@ -18,6 +18,7 @@ def get_secrets():
         'DB' : client.get_secret("db-name").value, 
         'USER' : client.get_secret("db-username").value, 
         'PASS' : client.get_secret("db-password").value,
-        'BLOB' : client.get_secret("blob-connection-string").value 
+        'BLOB' : client.get_secret("blob-connection-string").value,
+        'CENSUS_KEY' :  client.get_secret("api-key-census").value
         }
     return SECRETS

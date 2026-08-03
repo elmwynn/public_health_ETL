@@ -61,7 +61,7 @@ class BlobStorage:
         """
         Check if the json has already been uploaded
         """
-        return file_key not in self.get_existing_files()
+        return file_key in self.get_existing_files()
            
 
     def is_uploaded_in_session(self, file_key):
