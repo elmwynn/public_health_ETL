@@ -42,14 +42,14 @@ class CensusETL:
                     headers = data[0] # format: ['column_name_one', 'column_name_two']
                     rows = data[1:] # format: [[value_1, value_2], [value_3, value_4],...]
                     items = [dict(zip(headers, row)) for row in rows]
-                    geography_array.extend([
+                    geography_array.extend(
                         dict(
                             geo_id = item[response_key],
                             description = item['NAME'],
                             geo_type_id = geo_type_id,
                             year = year) 
                             for item in items
-                            ])
+                         )
 
             return geography_array
         except Exception as e:
@@ -63,7 +63,7 @@ class CensusETL:
             safe_delimiter = re.escape(delimiter)
             #get the endpoint_paths from the table and load into a {category_name : path,...} dictionary
             if not self.categories_path:
-                self.categories_paths = {category['category']: category['endpoint_path'] for category in self.db_client.get_rows('categories', 'census')['data']}
+                self.categories_path = {category['category']: category['endpoint_path'] for category in self.db_client.get_rows('categories', 'census')['data']}
             categories = [select_category] if select_category else self.categories_path.keys()
             subcategory_array = []
             for category in categories:
@@ -108,30 +108,36 @@ class CensusETL:
                 self.query_template = self.db_client.get_rows('geography_types', 'census')['data']
 
             if not self.categories_path:
-                self.categories_paths = {category['category']: category['endpoint_path'] for category in self.db_client.get_rows('categories', 'census')['data']}
+                self.categories_path = {category['category']: category['endpoint_path'] for category in self.db_client.get_rows('categories', 'census')['data']}
 
+            estimate_array = []
             categories = [select_category] if select_category else self.categories_path.keys()
             filtered_templates = [row for row in self.query_template if acs_type in row['acs_types'].split(",")]
             for template in filtered_templates:
                 for category in categories:
                     endpoint_path = self.categories_path[category] if self.categories_path[category] else ''
-                    modified_url =  url + endpoint_path + f"group({template['query_template'].replace('NAME', category)})" + "&key=" + api_key
+                    modified_url = url + endpoint_path + template['query_template'].replace('NAME', f"group({category})") + "&key=" + api_key
                     data = self.blob_storage.fetch_or_retrieve(modified_url, f"estimates_{category}")
                     if data:
-                          pass
-
-
+                        headers = data[0] # format: ['column_name_one', 'column_name_two']
+                        rows = data[1:] # format: [[value_1, value_2], [value_3, value_4],...]
+                        items = [dict(zip(headers, row)) for row in rows]
+                        for item in items:
+                            for identifier, value in item.items():
+                                if identifier.endswith('E') and not identifier.endswith('PE') and identifier.startswith(category):
+                                    subcategory = re.sub(r'[a-zA-Z]+$', '', identifier)
+                                    estimate_array.append(
+                                        dict(
+                                            subcategory = subcategory,
+                                            acs_type = acs_type,
+                                            year = year,
+                                            estimate = item[f"{subcategory}E"],
+                                            margin_of_error = item[f"{subcategory}M"],
+                                            geo_id = item[template['response_key']]
+                                        ))
+            return estimate_array
         except Exception as e:
             return []
-
-
-
-
-
-
-
-    
-
 
 
 
