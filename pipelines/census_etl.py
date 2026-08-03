@@ -71,7 +71,7 @@ class CensusETL:
                 modified_url = url + endpoint_path + '/groups/' + category + '.json?key=' + api_key
                 data = self.blob_storage.fetch_or_retrieve(modified_url, f"subcategories_{category}")
 
-                if data['variables']:
+                if data and data.get('variables'):
                     ##Keep estimates and ignore percentages/margins. Also strip the character at the end for the internal identifier   
                     filtered_subcategories = {re.sub(r'[a-zA-Z]+$', '', k): v for k, v in data['variables'].items() if k.endswith('E') and not k.endswith('PE') and k.startswith(category)}
                     for subcategory, values in filtered_subcategories.items():
